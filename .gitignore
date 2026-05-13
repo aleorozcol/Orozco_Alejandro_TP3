@@ -1,1 +1,8 @@
-data/raw/X_images.npy
+# Datos crudos (pesados): no se versionan en Git
+data/raw/*
+!data/raw/
+!data/raw/X_images.npy
+
+# Archivos temporales de Python
+__pycache__/
+src/__pycache__/
