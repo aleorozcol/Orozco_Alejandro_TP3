@@ -125,7 +125,7 @@ class MLP:
         y_train_one_hot = to_one_hot(y_train, num_classes=num_classes)
         y_val_one_hot = to_one_hot(y_val, num_classes=num_classes)
         
-        hist_loss = []
+        hist_loss_train = []
         hist_loss_val = []
         
         for epoch in range(epochs):
@@ -133,7 +133,7 @@ class MLP:
             Y_pred = self.forward(X_train)
             
             loss_train = self.compute_loss(y_train_one_hot, Y_pred)
-            hist_loss.append(loss_train)
+            hist_loss_train.append(loss_train)
             
             self.backward(y_train_one_hot)
             
@@ -147,5 +147,4 @@ class MLP:
             if epoch % 10 == 0 or epoch == epochs - 1:
                 print(f"Época {epoch:03d} | Train Loss: {loss_train:.4f} | Val Loss: {loss_val:.4f}")
                 
-        return hist_loss
-    
+        return hist_loss_train, hist_loss_val 
