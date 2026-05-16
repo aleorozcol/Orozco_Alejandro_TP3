@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -56,3 +57,34 @@ def compute_f1_macro(cm):
         
     # El F1 Macro es el promedio simple de todos los F1 de clase
     return np.mean(f1_scores)
+
+
+def build_metrics_report(model, X_train, y_train, X_val, y_val, num_classes, model_name="Modelo"):
+    """Build a pandas report with loss, accuracy and macro F1 for train and validation."""
+
+    y_pred_train = predict(model, X_train)
+    y_pred_val = predict(model, X_val)
+
+    y_train_one_hot = np.eye(num_classes)[y_train.astype(int)]
+    y_val_one_hot = np.eye(num_classes)[y_val.astype(int)]
+
+    loss_train = model.compute_loss(y_train_one_hot, model.forward(X_train))
+    loss_val = model.compute_loss(y_val_one_hot, model.forward(X_val))
+
+    acc_train = compute_accuracy(y_train, y_pred_train)
+    acc_val = compute_accuracy(y_val, y_pred_val)
+
+    cm_train = compute_confusion_matrix(y_train, y_pred_train, num_classes)
+    cm_val = compute_confusion_matrix(y_val, y_pred_val, num_classes)
+
+    f1_train = compute_f1_macro(cm_train)
+    f1_val = compute_f1_macro(cm_val)
+
+    return pd.DataFrame(
+        {
+            "Métrica": ["Cross-Entropy", "Accuracy", "F1-Score Macro"],
+            "Train": [loss_train, acc_train, f1_train],
+            "Validation": [loss_val, acc_val, f1_val],
+            "Modelo": [model_name, model_name, model_name],
+        }
+    )

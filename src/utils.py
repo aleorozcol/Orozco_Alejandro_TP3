@@ -7,6 +7,7 @@ from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 
 def get_emnist_balanced_class_names() -> list[str]:
@@ -83,5 +84,51 @@ def plot_emnist_character_distribution(
 	ax.set_xticklabels(class_names)
 	ax.tick_params(axis="x", rotation=90)
 	ax.grid(axis="y", linestyle="--", alpha=0.3)
+	plt.tight_layout()
+	plt.show()
+
+
+def plot_loss_curves(
+	train_loss: Sequence[float],
+	val_loss: Sequence[float],
+	title: str,
+	figsize: tuple[int, int] = (10, 6),
+	train_label: str = "Train Cross-Entropy",
+	val_label: str = "Validation Cross-Entropy",
+	train_color: str = "blue",
+	val_color: str = "red",
+) -> None:
+	"""Plot train and validation loss curves."""
+
+	plt.figure(figsize=figsize)
+	plt.plot(train_loss, label=train_label, color=train_color, linewidth=2, linestyle="--")
+	plt.plot(val_loss, label=val_label, color=val_color, linewidth=2)
+	plt.title(title, fontsize=14)
+	plt.xlabel("Épocas", fontsize=12)
+	plt.ylabel("Cross-Entropy Loss", fontsize=12)
+	plt.legend(fontsize=12)
+	plt.grid(True, linestyle=":", alpha=0.7)
+	plt.tight_layout()
+	plt.show()
+
+
+def plot_confusion_matrix_with_characters(
+	cm: np.ndarray,
+	class_names: Sequence[str] | None = None,
+	title: str = "Matriz de Confusión",
+	figsize: tuple[int, int] = (16, 12),
+	cmap: str = "Blues",
+	annot: bool = False,
+) -> None:
+	"""Plot a confusion matrix using EMNIST characters as axis labels."""
+
+	if class_names is None:
+		class_names = get_emnist_balanced_class_names()
+
+	plt.figure(figsize=figsize)
+	sns.heatmap(cm, annot=annot, cmap=cmap, fmt="g", cbar=True, xticklabels=class_names, yticklabels=class_names)
+	plt.title(title, fontsize=16)
+	plt.xlabel("Clase Predicha", fontsize=14)
+	plt.ylabel("Clase Real", fontsize=14)
 	plt.tight_layout()
 	plt.show()

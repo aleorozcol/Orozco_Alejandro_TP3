@@ -11,19 +11,19 @@ def to_one_hot(y, num_classes=47):
 
 class MLP:
 
-    def __init__(self, layer_sizes):
+    def __init__(self, architecture):
         """
-        layer_sizes: lista con la cantidad de nodos por capa.
+        architecture: lista con la cantidad de nodos por capa.
         """
 
-        self.num_layers = len(layer_sizes) # capas totales
+        self.num_layers = len(architecture) # capas totales
         self.params = {} # diccionario para los pesos W y bias b
 
         for i in range(1, self.num_layers):
-            # usamos inicialización de He (multiplicar por sqrt(2/n)) 
+            # inicialización He (multiplicar por sqrt(2/n)) 
             # mantiene la varianza de las activaciones al propagar hacia adelante con ReLU, evitando que las activaciones se apaguen o exploten en capas profundas
-            self.params[f'W{i}'] = np.random.randn(layer_sizes[i-1], layer_sizes[i]) * np.sqrt(2. / layer_sizes[i-1])
-            self.params[f'b{i}'] = np.zeros((1, layer_sizes[i]))
+            self.params[f'W{i}'] = np.random.randn(architecture[i-1], architecture[i]) * np.sqrt(2. / architecture[i-1])
+            self.params[f'b{i}'] = np.zeros((1, architecture[i]))
             
     def relu(self, Z):
         # devuelve el mismo valor si es positivo, o 0 si es negativo
@@ -41,7 +41,7 @@ class MLP:
         X: matriz de entrada de tamaño (batch_size, input_size)
         """
         # guardamos los valores intermedios que vamos a usar en el backpropagation
-        self.cache = {'A0': X}
+        self.save = {'A0': X}
         A = X
         
         # iteramos por las capas ocultas
@@ -52,8 +52,8 @@ class MLP:
             Z = A @ W + b
             A = self.relu(Z)
 
-            self.cache[f'Z{i}'] = Z
-            self.cache[f'A{i}'] = A
+            self.save[f'Z{i}'] = Z
+            self.save[f'A{i}'] = A
             
         # Capa de salida 
         L = self.num_layers - 1
@@ -63,8 +63,8 @@ class MLP:
         Z_out = A @ W_out + b_out
         A_out = self.softmax(Z_out)
 
-        self.cache[f'Z{L}'] = Z_out
-        self.cache[f'A{L}'] = A_out
+        self.save[f'Z{L}'] = Z_out
+        self.save[f'A{L}'] = A_out
         
         return A_out # probabilidades
 
@@ -74,7 +74,7 @@ class MLP:
         """
         m = Y_true_one_hot.shape[0]
         # evita que hagamos logaritmo de 0
-        epsilon = 1e-15
+        epsilon = 1e-20
         loss = -np.sum(Y_true_one_hot * np.log(Y_pred + epsilon)) / m
         return loss
 
@@ -85,30 +85,29 @@ class MLP:
         # capa de salida
         L = self.num_layers - 1
         
-        # 1. Gradiente de la capa de salida (Softmax + Cross-Entropy)
-        # Recuperamos la predicción del caché guardado en el forward pass
-        A_out = self.cache[f'A{L}']
+        # Gradiente de la capa de salida (Softmax + Cross-Entropy)
+        A_out = self.save[f'A{L}']
         # La derivada de Softmax + Cross-Entropy se simplifica a (Predicción - Real)
         dZ = A_out - Y_true_one_hot
         
         # Calculamos gradientes de pesos (dW) y sesgos (db) para la última capa
-        A_prev = self.cache[f'A{L-1}']
+        A_prev = self.save[f'A{L-1}']
         self.grads[f'dW{L}'] = (A_prev.T @ dZ) / m
         self.grads[f'db{L}'] = np.sum(dZ, axis=0, keepdims=True) / m
         
-        # 2. Propagación del error hacia atrás para las capas ocultas
+        # propagación del error 
         for i in range(L - 1, 0, -1):
             W_next = self.params[f'W{i+1}']
+
+            Z_curr = self.save[f'Z{i}']
+
+            # derivada de la relu: pone 1 donde la Z original era positiva y 0 donde era negativa
+            d_relu = np.where(Z_curr > 0, 1.0, 0.0) 
             
-            # Derivada de ReLU: es 1 si Z > 0, y 0 si es negativo
-            Z_curr = self.cache[f'Z{i}']
-            d_relu = np.where(Z_curr > 0, 1.0, 0.0)
-            
-            # Regla de la cadena para calcular el error en la capa actual
+            # regla de la cadena para calcular el error en la capa actual
             dZ = (dZ @ W_next.T) * d_relu
-            
-            # Guardamos los gradientes de esta capa
-            A_prev = self.cache[f'A{i-1}']
+
+            A_prev = self.save[f'A{i-1}']
             self.grads[f'dW{i}'] = (A_prev.T @ dZ) / m
             self.grads[f'db{i}'] = np.sum(dZ, axis=0, keepdims=True) / m
 
@@ -130,16 +129,16 @@ class MLP:
         
         for epoch in range(epochs):
 
-            Y_pred = self.forward(X_train)
+            Y_pred = self.forward(X_train) 
             
-            loss_train = self.compute_loss(y_train_one_hot, Y_pred)
+            loss_train = self.compute_loss(y_train_one_hot, Y_pred) 
             hist_loss_train.append(loss_train)
             
             self.backward(y_train_one_hot)
             
             self.update_params(learning_rate)
 
-            # Forward pass (Validation): usamos la red actualizada pero no hacemos backward
+            # forward pass (validation): usamos la red actualizada pero no hacemos backward
             Y_pred_val = self.forward(X_val)
             loss_val = self.compute_loss(y_val_one_hot, Y_pred_val)
             hist_loss_val.append(loss_val)
