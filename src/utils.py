@@ -120,15 +120,20 @@ def plot_validation_loss_improvement(
 	title: str = "Mejora de validation loss entre M0 y M1",
 	figsize: tuple[int, int] = (11, 8),
 ) -> None:
-	"""Plot validation loss curves and epoch-by-epoch improvement of M1 over M0."""
+	"""Plot validation loss curves and epoch-by-epoch improvement of M1 over M0.
+
+	If the histories have different lengths, the plot uses the common prefix so
+	the comparison still works when one model stops early.
+	"""
 
 	val_loss_m0_array = np.asarray(val_loss_m0, dtype=float)
 	val_loss_m1_array = np.asarray(val_loss_m1, dtype=float)
 
 	if val_loss_m0_array.size == 0 or val_loss_m1_array.size == 0:
 		raise ValueError("val_loss_m0 and val_loss_m1 cannot be empty")
-	if val_loss_m0_array.shape != val_loss_m1_array.shape:
-		raise ValueError("val_loss_m0 and val_loss_m1 must have the same length")
+	min_len = min(val_loss_m0_array.size, val_loss_m1_array.size)
+	val_loss_m0_array = val_loss_m0_array[:min_len]
+	val_loss_m1_array = val_loss_m1_array[:min_len]
 
 	epochs = np.arange(1, val_loss_m0_array.size + 1)
 	improvement_pct = 100 * (val_loss_m0_array - val_loss_m1_array) / val_loss_m0_array
