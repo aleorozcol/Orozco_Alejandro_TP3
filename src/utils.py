@@ -224,7 +224,7 @@ def plot_confusion_matrix_comparison(
 		vmin=0,
 		vmax=vmax,
 		cbar=True,
-		ticklabels=class_names,
+		xticklabels=class_names,
 		yticklabels=class_names,
 	)
 	axes[0].set_title(f"{baseline_label}", fontsize=14)
@@ -240,7 +240,7 @@ def plot_confusion_matrix_comparison(
 		vmin=0,
 		vmax=vmax,
 		cbar=True,
-		ticklabels=class_names,
+		xticklabels=class_names,
 		yticklabels=class_names,
 	)
 	axes[1].set_title(f"{improved_label}", fontsize=14)
