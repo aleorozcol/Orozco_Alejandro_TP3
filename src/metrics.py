@@ -98,8 +98,8 @@ def build_metrics_report(model, X_train, y_train, X_val, y_val, num_classes, mod
     y_train_one_hot = _to_model_backend(model, np.eye(num_classes)[_to_numpy(y_train).astype(int)])
     y_val_one_hot = _to_model_backend(model, np.eye(num_classes)[_to_numpy(y_val).astype(int)])
 
-    loss_train = model.compute_loss(y_train_one_hot, model.forward(X_train_model))
-    loss_val = model.compute_loss(y_val_one_hot, model.forward(X_val_model))
+    loss_train = float(_to_numpy(model.compute_loss(y_train_one_hot, model.forward(X_train_model))))
+    loss_val = float(_to_numpy(model.compute_loss(y_val_one_hot, model.forward(X_val_model))))
 
     acc_train = compute_accuracy(y_train, y_pred_train)
     acc_val = compute_accuracy(y_val, y_pred_val)
@@ -195,8 +195,8 @@ def compare_training_improvements(
                 "Patience": experiment.get("patience", 5),
                 "Épocas ejecutadas": len(train_history),
                 "Tiempo (s)": elapsed_time,
-                "Train Loss": float(train_history[-1]),
-                "Val Loss": float(val_history[-1]),
+                "Train Loss": float(_to_numpy(train_history[-1])),
+                "Val Loss": float(_to_numpy(val_history[-1])),
                 "Train Acc": compute_accuracy(y_train_np, y_pred_train),
                 "Val Acc": compute_accuracy(y_val_np, y_pred_val),
                 "Train F1": compute_f1_macro(cm_train),
