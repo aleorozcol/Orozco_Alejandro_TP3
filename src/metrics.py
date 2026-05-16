@@ -17,11 +17,23 @@ def _to_numpy(array):
         return cp.asnumpy(array)
     return np.asarray(array)
 
+
+def _to_model_backend(model, array):
+    """Convert inputs to the same array backend used by the model when possible."""
+
+    if cp is not None:
+        params = getattr(model, "params", None)
+        if isinstance(params, dict):
+            for value in params.values():
+                if isinstance(value, cp.ndarray):
+                    return cp.asarray(array)
+    return np.asarray(array)
+
 def predict(model, X):
     """
     Realiza el forward pass y devuelve las clases predichas.
     """
-    A_out = model.forward(X)
+    A_out = model.forward(_to_model_backend(model, X))
     # np.argmax nos devuelve el índice (la clase) con la mayor probabilidad
     if cp is not None and isinstance(A_out, cp.ndarray):
         return cp.asnumpy(cp.argmax(A_out, axis=1))
@@ -78,14 +90,16 @@ def compute_f1_macro(cm):
 def build_metrics_report(model, X_train, y_train, X_val, y_val, num_classes, model_name="Modelo"):
     """Build a pandas report with loss, accuracy and macro F1 for train and validation."""
 
-    y_pred_train = predict(model, X_train)
-    y_pred_val = predict(model, X_val)
+    X_train_model = _to_model_backend(model, X_train)
+    X_val_model = _to_model_backend(model, X_val)
+    y_pred_train = predict(model, X_train_model)
+    y_pred_val = predict(model, X_val_model)
 
-    y_train_one_hot = np.eye(num_classes)[_to_numpy(y_train).astype(int)]
-    y_val_one_hot = np.eye(num_classes)[_to_numpy(y_val).astype(int)]
+    y_train_one_hot = _to_model_backend(model, np.eye(num_classes)[_to_numpy(y_train).astype(int)])
+    y_val_one_hot = _to_model_backend(model, np.eye(num_classes)[_to_numpy(y_val).astype(int)])
 
-    loss_train = model.compute_loss(y_train_one_hot, model.forward(X_train))
-    loss_val = model.compute_loss(y_val_one_hot, model.forward(X_val))
+    loss_train = model.compute_loss(y_train_one_hot, model.forward(X_train_model))
+    loss_val = model.compute_loss(y_val_one_hot, model.forward(X_val_model))
 
     acc_train = compute_accuracy(y_train, y_pred_train)
     acc_val = compute_accuracy(y_val, y_pred_val)
