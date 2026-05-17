@@ -53,19 +53,33 @@ def evaluate_model_numpy(model, X_test, y_test, num_classes=47):
     return acc, float(np.mean(f1_scores))
 
 
-def evaluate_model_pytorch(model, X_test, y_test, num_classes=47):
-    """Evalúa un model implementado en PyTorch (M2, M3)."""
-
+def evaluate_model_pytorch(model, X_test, y_test, num_classes=47, batch_size=512):
+    """Evalúa un modelo implementado en PyTorch procesando en mini-batches."""
     model.eval()
     model_device = next(model.parameters()).device
 
-    X_t = torch.tensor(X_test, dtype=torch.float32).to(model_device)
+    todas_las_predicciones = []
 
     with torch.no_grad():
-        outputs = model(X_t)
-        _, predicciones = torch.max(outputs, 1)
+        # Iteramos sobre los datos de test saltando de a 'batch_size'
+        for i in range(0, len(X_test), batch_size):
+            # Recortamos el lote actual en NumPy
+            X_batch = X_test[i:i + batch_size]
+            
+            # Pasamos SOLO este lote a Tensor y lo enviamos a la GPU
+            X_t = torch.tensor(X_batch, dtype=torch.float32).to(model_device)
+            
+            # Hacemos la predicción
+            outputs = model(X_t)
+            _, predicciones_batch = torch.max(outputs, 1)
+            
+            # Guardamos las predicciones devolviéndolas a la CPU
+            todas_las_predicciones.extend(predicciones_batch.cpu().numpy())
 
-    y_pred = predicciones.cpu().numpy()
+    # array de NumPy
+    y_pred = np.array(todas_las_predicciones)
+    
+    # accuracy general
     acc = float(np.mean(y_test == y_pred))
 
     cm = np.zeros((num_classes, num_classes), dtype=int)
@@ -83,7 +97,7 @@ def evaluate_model_pytorch(model, X_test, y_test, num_classes=47):
         f1_scores.append(f1)
 
     return acc, float(np.mean(f1_scores))
-
+    
 class MLP_PyTorch(nn.Module):
     def __init__(self, layer_sizes):
         super(MLP_PyTorch, self).__init__()

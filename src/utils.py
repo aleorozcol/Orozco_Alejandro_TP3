@@ -257,6 +257,7 @@ def plot_ablation_loss_curves(
 	histories: Sequence[dict],
 	baseline_name: str = "M0",
 	figsize: tuple[int, int] = (12, 6),
+	max_epochs: int = 20,
 ) -> None:
 	"""Plot a single validation-loss chart for the baseline and improvement runs."""
 
@@ -269,19 +270,28 @@ def plot_ablation_loss_curves(
 	plt.figure(figsize=figsize)
 	colormap = plt.cm.tab10(np.linspace(0, 1, len(histories) + 1))
 
-	epochs_baseline = np.arange(1, len(baseline_val_loss) + 1)
+	# Clip histories to max_epochs for plotting
+	max_epochs = int(max_epochs) if max_epochs is not None else None
+
+	baseline_vals = np.asarray(baseline_val_loss, dtype=float)
+	if max_epochs is not None and baseline_vals.size > max_epochs:
+		baseline_vals = baseline_vals[:max_epochs]
+
+	epochs_baseline = np.arange(1, baseline_vals.size + 1)
 	plt.plot(
 		epochs_baseline,
-		baseline_val_loss,
+		baseline_vals,
 		label=baseline_name,
 		color=colormap[0],
 		linewidth=2.5,
 	)
 
 	for idx, history in enumerate(histories, start=1):
-		val_loss = history.get("val_loss", [])
+		val_loss = np.asarray(history.get("val_loss", []), dtype=float)
+		if max_epochs is not None and val_loss.size > max_epochs:
+			val_loss = val_loss[:max_epochs]
 		name = history.get("name", "Experimento")
-		epochs = np.arange(1, len(val_loss) + 1)
+		epochs = np.arange(1, val_loss.size + 1)
 		plt.plot(
 			epochs,
 			val_loss,

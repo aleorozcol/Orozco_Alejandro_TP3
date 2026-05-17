@@ -160,7 +160,7 @@ def compare_training_improvements(
         "Optimizer": reference_metrics.get("Optimizer", "sgd"),
         "L2": reference_metrics.get("L2", 0.0),
         "Patience": reference_metrics.get("Patience", "-"),
-        "Épocas ejecutadas": reference_metrics.get("Épocas ejecutadas", np.nan),
+        "Épocas ejecutadas": 100,
         "Tiempo (s)": reference_metrics.get("Tiempo (s)", np.nan),
         "Train Loss": reference_metrics.get("Train Loss", np.nan),
         "Val Loss": reference_metrics.get("Val Loss", np.nan),
@@ -168,11 +168,15 @@ def compare_training_improvements(
         "Val Acc": reference_metrics.get("Val Acc", np.nan),
         "Train F1": reference_metrics.get("Train F1", np.nan),
         "Val F1": reference_metrics.get("Val F1", np.nan),
+        "Arq": reference_metrics.get("Arquitectura", reference_metrics.get("architecture", "-")),
     }
     rows.append(baseline_row)
 
     for experiment in experiments:
         model = model_factory()
+        # determine architecture text for the experiment row
+        architecture = experiment.get("architecture") or experiment.get("arquitectura")
+        architecture_text = " -> ".join(map(str, architecture)) if architecture else "-"
         print(f"\n[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment)}")
         start_time = time.time()
         train_history, val_history = model.train(
@@ -215,6 +219,7 @@ def compare_training_improvements(
                 "Val Acc": compute_accuracy(y_val_np, y_pred_val),
                 "Train F1": compute_f1_macro(cm_train),
                 "Val F1": compute_f1_macro(cm_val),
+                "Arq": architecture_text,
             }
         )
 
@@ -232,18 +237,6 @@ def compare_training_improvements(
         )
 
     report = pd.DataFrame(rows)
-    reference_time = baseline_row.get("Tiempo (s)")
-    reference_val_loss = baseline_row.get("Val Loss")
-
-    if pd.notna(reference_time):
-        report["ΔTiempo vs M0 (%)"] = 100 * (report["Tiempo (s)"] - reference_time) / reference_time
-    else:
-        report["ΔTiempo vs M0 (%)"] = np.nan
-
-    if pd.notna(reference_val_loss):
-        report["ΔVal Loss vs M0 (%)"] = 100 * (report["Val Loss"] - reference_val_loss) / reference_val_loss
-    else:
-        report["ΔVal Loss vs M0 (%)"] = np.nan
 
     if return_histories:
         return report, histories
