@@ -25,7 +25,7 @@ def grid_search(X_train, y_train, X_val, y_val, epochs=40, patience=5):
         'optimizer': ['adam'],
         'learning_rate': [0.001],
         'batch_size': [128, 256],
-        'l2': [0.0, 0.001, 0.0001]
+        'l2': [0.01, 0.001, 0.0001]
     }
 
     keys = param_grid.keys()
