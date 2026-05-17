@@ -141,7 +141,6 @@ def build_metrics_report(model, X_train, y_train, X_val, y_val, num_classes, mod
         }
     )
 
-
 def compare_training_improvements(
     model_factory,
     experiments,
@@ -156,19 +155,20 @@ def compare_training_improvements(
     reference_name="M0",
     return_histories=False,
 ):
-    """Train one improvement at a time and compare each run against a precomputed baseline."""
+    """Train one improvement at a time and compare each run against a precomputed baseline. (Strict Batch Mode + Adam Failsafe)"""
 
     y_train_np = _to_numpy(y_train).astype(int)
     y_val_np = _to_numpy(y_val).astype(int)
     rows = []
     histories = []
 
-    def _format_experiment_summary(experiment, architecture_text):
+    # Le agregamos el parámetro lr_to_print para que el texto refleje el cambio automático
+    def _format_experiment_summary(experiment, architecture_text, lr_to_print):
         batch_size = experiment.get("batch_size")
         batch_text = "Full" if batch_size is None else batch_size
         return (
             f"Config: Arq={architecture_text} | Opt={experiment.get('optimizer', 'sgd')} | "
-            f"LR={experiment.get('learning_rate', learning_rate)} | Batch={batch_text} | "
+            f"LR={lr_to_print} | Batch={batch_text} | "
             f"L2={experiment.get('l2', 0.0)} | Scheduler={experiment.get('scheduler_type', 'exponential')} | "
             f"Patience={experiment.get('patience', 5)}"
         )
@@ -193,72 +193,63 @@ def compare_training_improvements(
     rows.append(baseline_row)
 
     for experiment in experiments:
-        # determine architecture text for the experiment row
         print(f"\n[{experiment.get('name', 'Experimento')}] ...")
         start_time = time.time()
-        # Try training, handle GPU out-of-memory by retrying with smaller batch sizes.
-        orig_batch = experiment.get("batch_size")
-        tried_batches = []
+        
+        # 1. Tomamos el LR del experimento, o el 0.1 por defecto
+        current_lr = experiment.get("learning_rate", learning_rate)
+        
+        # 2. Si el optimizador es Adam y no le pusiste un LR manual en la lista, lo forzamos a 0.001
+        if experiment.get("optimizer") == "adam" and "learning_rate" not in experiment:
+            current_lr = 0.001
+        
+        batch_size = experiment.get("batch_size")
         train_history = val_history = None
-        used_batch = orig_batch
+        
+        model = model_factory()
+        
+        try:
+            # free GPU memory pools and collect gc before attempting
+            if cp is not None:
+                try:
+                    cp.get_default_memory_pool().free_all_blocks()
+                except Exception:
+                    pass
+            gc.collect()
 
-        # Prepare list of batch sizes to try: original (may be None meaning Full), then reductions
-        trial_batch_sizes = [orig_batch]
-        if orig_batch is None:
-            trial_batch_sizes.extend([256, 128, 64, 32, 16, 8, 4, 1])
-
-        for batch_try in trial_batch_sizes:
-            model = model_factory()
-            try:
-                # free GPU memory pools and collect gc before attempting
-                if cp is not None:
-                    try:
-                        cp.get_default_memory_pool().free_all_blocks()
-                    except Exception:
-                        pass
-                gc.collect()
-
-                train_history, val_history = model.train(
-                    X_train,
-                    y_train,
-                    X_val,
-                    y_val,
-                    epochs=experiment.get("epochs", epochs),
-                    learning_rate=experiment.get("learning_rate", learning_rate),
-                    scheduler_type=experiment.get("scheduler_type", "exponential"),
-                    decay_rate=experiment.get("decay_rate", 0.05),
-                    final_lr=experiment.get("final_lr", 1e-5),
-                    batch_size=batch_try,
-                    patience=experiment.get("patience", 5),
-                    l2=experiment.get("l2", 0.0),
-                    optimizer=experiment.get("optimizer", "sgd"),
-                    verbose=False,
-                )
-                used_batch = batch_try
-                break
-            except Exception as e:
-                msg = str(e)
-                tried_batches.append(batch_try)
-                del model
-                gc.collect()
-                if cp is not None:
-                    try:
-                        cp.get_default_memory_pool().free_all_blocks()
-                    except Exception:
-                        pass
-                if (cp is not None and ("OutOfMemory" in msg or "out of memory" in msg.lower())) or (
-                    cp is None and "out of memory" in msg.lower()
-                ):
-                    print(f"  WARNING: OOM during training with batch={batch_try}. Retrying with smaller batch...")
-                    # continue to next smaller batch
-                    continue
-                else:
-                    # re-raise unexpected exceptions
-                    raise
-
-        if train_history is None or val_history is None:
-            print(f"  ERROR: Training failed for experiment {experiment.get('name')}. Tried batches: {tried_batches}")
-            # skip to next experiment
+            train_history, val_history = model.train(
+                X_train,
+                y_train,
+                X_val,
+                y_val,
+                epochs=experiment.get("epochs", epochs),
+                learning_rate=current_lr,  
+                scheduler_type=experiment.get("scheduler_type", "exponential"),
+                decay_rate=experiment.get("decay_rate", 0.05),
+                final_lr=experiment.get("final_lr", 1e-5),
+                batch_size=batch_size, 
+                patience=experiment.get("patience", 5),
+                l2=experiment.get("l2", 0.0),
+                optimizer=experiment.get("optimizer", "sgd"),
+                verbose=False,
+            )
+            
+        except Exception as e:
+            msg = str(e)
+            del model
+            gc.collect()
+            if cp is not None:
+                try:
+                    cp.get_default_memory_pool().free_all_blocks()
+                except Exception:
+                    pass
+            
+            if (cp is not None and ("OutOfMemory" in msg or "out of memory" in msg.lower())) or \
+               (cp is None and "out of memory" in msg.lower()):
+                print(f"  ERROR: OOM durante el entrenamiento. El batch '{'Full' if batch_size is None else batch_size}' excede la memoria.")
+            else:
+                print(f"  ERROR INESPERADO: {msg}")
+            
             continue
 
         elapsed_time = time.time() - start_time
@@ -269,7 +260,8 @@ def compare_training_improvements(
         else:
             architecture_text = _architecture_text_from_model(model)
 
-        print(f"[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment, architecture_text)}")
+        # Usamos current_lr para que el print muestre el valor real con el que entrenó
+        print(f"[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment, architecture_text, current_lr)}")
 
         y_pred_train = predict(model, X_train)
         y_pred_val = predict(model, X_val)
@@ -281,7 +273,7 @@ def compare_training_improvements(
             {
                 "Experimento": experiment.get("name", "Experimento"),
                 "Scheduler": experiment.get("scheduler_type", "exponential"),
-                "Batch Size": "Full" if used_batch is None else used_batch,
+                "Batch Size": "Full" if batch_size is None else batch_size,
                 "Optimizer": experiment.get("optimizer", "sgd"),
                 "L2": experiment.get("l2", 0.0),
                 "Patience": experiment.get("patience", 5),
