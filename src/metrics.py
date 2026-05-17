@@ -1,12 +1,10 @@
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 import time
 import gc
 
 try:
-    import cupy as cp
+    import cupy as cp  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional GPU dependency
     cp = None
 
@@ -29,6 +27,29 @@ def _to_model_backend(model, array):
                 if isinstance(value, cp.ndarray):
                     return cp.asarray(array)
     return np.asarray(array)
+
+
+def _architecture_text_from_model(model):
+    """Infer a compact architecture string like 784 -> 128 -> 64 -> 47 from model weights."""
+
+    params = getattr(model, "params", None)
+    if not isinstance(params, dict) or not params:
+        return "-"
+
+    layer_sizes = []
+    weight_keys = sorted([key for key in params if key.startswith("W")], key=lambda key: int(key[1:]))
+    if not weight_keys:
+        return "-"
+
+    first_weight = params[weight_keys[0]]
+    try:
+        layer_sizes.append(int(first_weight.shape[0]))
+        for key in weight_keys:
+            layer_sizes.append(int(params[key].shape[1]))
+    except Exception:
+        return "-"
+
+    return " -> ".join(map(str, layer_sizes))
 
 def predict(model, X):
     """
@@ -142,9 +163,7 @@ def compare_training_improvements(
     rows = []
     histories = []
 
-    def _format_experiment_summary(experiment):
-        architecture = experiment.get("architecture") or experiment.get("arquitectura")
-        architecture_text = " -> ".join(map(str, architecture)) if architecture else "-"
+    def _format_experiment_summary(experiment, architecture_text):
         batch_size = experiment.get("batch_size")
         batch_text = "Full" if batch_size is None else batch_size
         return (
@@ -174,11 +193,8 @@ def compare_training_improvements(
     rows.append(baseline_row)
 
     for experiment in experiments:
-        model = model_factory()
         # determine architecture text for the experiment row
-        architecture = experiment.get("architecture") or experiment.get("arquitectura")
-        architecture_text = " -> ".join(map(str, architecture)) if architecture else "-"
-        print(f"\n[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment)}")
+        print(f"\n[{experiment.get('name', 'Experimento')}] ...")
         start_time = time.time()
         # Try training, handle GPU out-of-memory by retrying with smaller batch sizes.
         orig_batch = experiment.get("batch_size")
@@ -189,9 +205,10 @@ def compare_training_improvements(
         # Prepare list of batch sizes to try: original (may be None meaning Full), then reductions
         trial_batch_sizes = [orig_batch]
         if orig_batch is None:
-            trial_batch_sizes.extend([256, 128, 64])
+            trial_batch_sizes.extend([256, 128, 64, 32, 16, 8, 4, 1])
 
         for batch_try in trial_batch_sizes:
+            model = model_factory()
             try:
                 # free GPU memory pools and collect gc before attempting
                 if cp is not None:
@@ -222,6 +239,13 @@ def compare_training_improvements(
             except Exception as e:
                 msg = str(e)
                 tried_batches.append(batch_try)
+                del model
+                gc.collect()
+                if cp is not None:
+                    try:
+                        cp.get_default_memory_pool().free_all_blocks()
+                    except Exception:
+                        pass
                 if (cp is not None and ("OutOfMemory" in msg or "out of memory" in msg.lower())) or (
                     cp is None and "out of memory" in msg.lower()
                 ):
@@ -239,6 +263,14 @@ def compare_training_improvements(
 
         elapsed_time = time.time() - start_time
         elapsed_time = time.time() - start_time
+
+        architecture_text = experiment.get("architecture") or experiment.get("arquitectura")
+        if architecture_text:
+            architecture_text = " -> ".join(map(str, architecture_text))
+        else:
+            architecture_text = _architecture_text_from_model(model)
+
+        print(f"[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment, architecture_text)}")
 
         y_pred_train = predict(model, X_train)
         y_pred_val = predict(model, X_val)
