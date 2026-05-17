@@ -141,6 +141,18 @@ def compare_training_improvements(
     rows = []
     histories = []
 
+    def _format_experiment_summary(experiment):
+        architecture = experiment.get("architecture") or experiment.get("arquitectura")
+        architecture_text = " -> ".join(map(str, architecture)) if architecture else "-"
+        batch_size = experiment.get("batch_size")
+        batch_text = "Full" if batch_size is None else batch_size
+        return (
+            f"Config: Arq={architecture_text} | Opt={experiment.get('optimizer', 'sgd')} | "
+            f"LR={experiment.get('learning_rate', learning_rate)} | Batch={batch_text} | "
+            f"L2={experiment.get('l2', 0.0)} | Scheduler={experiment.get('scheduler_type', 'exponential')} | "
+            f"Patience={experiment.get('patience', 5)}"
+        )
+
     baseline_row = {
         "Experimento": reference_name,
         "Scheduler": reference_metrics.get("Scheduler", "-"),
@@ -161,6 +173,7 @@ def compare_training_improvements(
 
     for experiment in experiments:
         model = model_factory()
+        print(f"\n[{experiment.get('name', 'Experimento')}] {_format_experiment_summary(experiment)}")
         start_time = time.time()
         train_history, val_history = model.train(
             X_train,
@@ -176,6 +189,7 @@ def compare_training_improvements(
             patience=experiment.get("patience", 5),
             l2=experiment.get("l2", 0.0),
             optimizer=experiment.get("optimizer", "sgd"),
+            verbose=False,
         )
         elapsed_time = time.time() - start_time
 
@@ -210,6 +224,11 @@ def compare_training_improvements(
                 "train_loss": [float(value) for value in train_history],
                 "val_loss": [float(value) for value in val_history],
             }
+        )
+
+        print(
+            f"--> Train Loss: {float(_to_numpy(train_history[-1])):.4f} | "
+            f"Val Loss: {float(_to_numpy(val_history[-1])):.4f} | Tiempo: {elapsed_time:.1f} s"
         )
 
     report = pd.DataFrame(rows)

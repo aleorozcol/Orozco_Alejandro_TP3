@@ -158,7 +158,7 @@ class MLP_Advanced:
                 self.params[f'W{i}'] -= learning_rate * self.grads[f'dW{i}']
                 self.params[f'b{i}'] -= learning_rate * self.grads[f'db{i}']
 
-    def train(self, X_train, y_train, X_val, y_val,  epochs, learning_rate, scheduler_type='exponential', decay_rate=0.05, final_lr=1e-5, batch_size=None, patience=5, l2=0, optimizer='sgd'):
+    def train(self, X_train, y_train, X_val, y_val,  epochs, learning_rate, scheduler_type='exponential', decay_rate=0.05, final_lr=1e-5, batch_size=None, patience=5, l2=0, optimizer='sgd', verbose=True):
 
         num_classes = self.params[f'W{self.num_layers-1}'].shape[1]
 
@@ -217,7 +217,7 @@ class MLP_Advanced:
             loss_val = self.compute_loss(y_val_one_hot, Y_pred_val, l2) 
             hist_loss_val.append(loss_val)
             
-            if epoch % 5 == 0 or epoch == epochs - 1:
+            if verbose and (epoch % 5 == 0 or epoch == epochs - 1):
                 scheduler_label = 'Exp' if scheduler_type == 'exponential' else 'Lin'
                 print(f"Época {epoch:03d} | [{scheduler_label}] LR: {current_lr:.5f} | Train Loss: {epoch_loss_train:.4f} | Val Loss: {loss_val:.4f}")
             
@@ -228,7 +228,8 @@ class MLP_Advanced:
             else:
                 no_improve += 1
                 if no_improve >= patience:
-                    print(f"\n¡Early stopping en la época {epoch}!")
+                    if verbose:
+                        print(f"\n¡Early stopping en la época {epoch}!")
                     break                    
                 
         return hist_loss_train, hist_loss_val 

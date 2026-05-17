@@ -18,13 +18,14 @@ def grid_search(X_train, y_train, X_val, y_val, epochs=40, patience=5):
 
     param_grid = {
         'arquitectura': [
-            [784, 256, 128, 47],       # Más ancha (más nodos)
-            #[784, 128, 64, 32, 47]     # Más profunda (más capas)
+            [784, 256, 128, 47],       
+            [784, 256, 128, 64, 47],
+            [784, 512, 256, 128, 47]    
         ],
         'optimizer': ['adam'],
         'learning_rate': [0.001],
-        'batch_size': [128],
-        'l2': [0.01]
+        'batch_size': [128, 256],
+        'l2': [0.0, 0.001, 0.0001]
     }
 
     keys = param_grid.keys()
@@ -74,10 +75,10 @@ def grid_search(X_train, y_train, X_val, y_val, epochs=40, patience=5):
         if min_val_loss < best_val_loss:
             best_val_loss = min_val_loss
             best_config = config
-            print("⭐ ¡NUEVO MEJOR MODELO ENCONTRADO!")
+            print("🏆 ¡NUEVO MEJOR MODELO!")
 
 
-    _print_section("RESUMEN FINAL DEL GRID SEARCH")
+    _print_section("🥇 Configuración Ganadora M1")
     print(f"Mejor validation loss: {best_val_loss:.4f}")
     print("Configuración ganadora:")
     print(f"  - Arquitectura: {_format_architecture(best_config['arquitectura'])}")

@@ -253,36 +253,213 @@ def plot_confusion_matrix_comparison(
 
 
 def plot_ablation_loss_curves(
+	baseline_val_loss: Sequence[float],
 	histories: Sequence[dict],
 	baseline_name: str = "M0",
-	figsize: tuple[int, int] = (16, 10),
-	columns: int = 2,
+	figsize: tuple[int, int] = (12, 6),
 ) -> None:
-	"""Plot train and validation loss curves for multiple training variants."""
+	"""Plot a single validation-loss chart for the baseline and improvement runs."""
 
 	if not histories:
 		raise ValueError("histories cannot be empty")
 
-	rows = int(np.ceil(len(histories) / columns))
-	fig, axes = plt.subplots(rows, columns, figsize=figsize, squeeze=False)
-	axes_array = axes.flatten()
+	if len(baseline_val_loss) == 0:
+		raise ValueError("baseline_val_loss cannot be empty")
 
-	for ax, history in zip(axes_array, histories):
-		train_loss = history.get("train_loss", [])
+	plt.figure(figsize=figsize)
+	colormap = plt.cm.tab10(np.linspace(0, 1, len(histories) + 1))
+
+	epochs_baseline = np.arange(1, len(baseline_val_loss) + 1)
+	plt.plot(
+		epochs_baseline,
+		baseline_val_loss,
+		label=baseline_name,
+		color=colormap[0],
+		linewidth=2.5,
+	)
+
+	for idx, history in enumerate(histories, start=1):
 		val_loss = history.get("val_loss", [])
 		name = history.get("name", "Experimento")
+		epochs = np.arange(1, len(val_loss) + 1)
+		plt.plot(
+			epochs,
+			val_loss,
+			label=name,
+			color=colormap[idx],
+			linewidth=2,
+		)
 
-		ax.plot(train_loss, label="Train Cross-Entropy", color="blue", linewidth=2, linestyle="--")
-		ax.plot(val_loss, label="Validation Cross-Entropy", color="red", linewidth=2)
-		ax.set_title(name, fontsize=12)
-		ax.set_xlabel("Épocas")
-		ax.set_ylabel("Cross-Entropy Loss")
-		ax.grid(True, linestyle=":", alpha=0.7)
-		ax.legend(fontsize=9)
+	plt.title(f"Evolución de la validación por mejora (baseline: {baseline_name})", fontsize=16)
+	plt.xlabel("Épocas")
+	plt.ylabel("Validation Cross-Entropy")
+	plt.grid(True, linestyle=":", alpha=0.7)
+	plt.legend(fontsize=9, ncol=2)
+	plt.tight_layout()
+	plt.show()
 
-	for ax in axes_array[len(histories):]:
+
+def plot_numpy_pytorch_loss_comparison(
+	train_loss_m1: Sequence[float],
+	train_loss_m2: Sequence[float],
+	val_loss_m1: Sequence[float],
+	val_loss_m2: Sequence[float],
+	model_1_label: str = "M1 (NumPy)",
+	model_2_label: str = "M2 (PyTorch)",
+	title_train: str = "Comparativa de Pérdida: Entrenamiento",
+	title_val: str = "Comparativa de Pérdida: Validación",
+	figsize: tuple[int, int] = (14, 6),
+) -> None:
+	"""Plot train and validation loss comparison between two models and print a summary verdict."""
+
+	plt.figure(figsize=figsize)
+
+	plt.subplot(1, 2, 1)
+	plt.plot(train_loss_m1, label=f"{model_1_label} - Train", color="darkblue", linewidth=2)
+	plt.plot(train_loss_m2, label=f"{model_2_label} - Train", color="cyan", linestyle="--", linewidth=2)
+	plt.title(title_train, fontsize=12)
+	plt.xlabel("Épocas")
+	plt.ylabel("Cross-Entropy Loss")
+	plt.legend()
+	plt.grid(True, linestyle=":", alpha=0.6)
+
+	plt.subplot(1, 2, 2)
+	plt.plot(val_loss_m1, label=f"{model_1_label} - Val", color="darkorange", linewidth=2)
+	plt.plot(val_loss_m2, label=f"{model_2_label} - Val", color="red", linestyle="--", linewidth=2)
+	plt.title(title_val, fontsize=12)
+	plt.xlabel("Épocas")
+	plt.ylabel("Cross-Entropy Loss")
+	plt.legend()
+	plt.grid(True, linestyle=":", alpha=0.6)
+
+	plt.tight_layout()
+	plt.show()
+
+	print("\n" + "=" * 50)
+	print("VEREDICTO DE COMPARACIÓN DE PERFORMANCE")
+	print("=" * 50)
+	print(f"{model_1_label}   -> Pérdida Mínima en Validación: {min(val_loss_m1):.4f}")
+	print(f"{model_2_label} -> Pérdida Mínima en Validación: {min(val_loss_m2):.4f}")
+	print(f"Diferencia absoluta: {abs(min(val_loss_m1) - min(val_loss_m2)):.5f}")
+	print("=" * 50)
+
+
+def plot_metrics_bar_comparison(
+	df_resultados,
+	title: str = "Performance Comparativa en Test Set (EMNIST ByMerge)",
+	figsize: tuple[int, int] = (10, 6),
+	accuracy_column: str = "Accuracy",
+	f1_column: str = "F1-Score Macro",
+	model_column: str = "Modelo",
+) -> None:
+	"""Plot grouped bars for accuracy and macro F1 score."""
+
+	x = np.arange(len(df_resultados[model_column]))
+	width = 0.35
+
+	fig, ax = plt.subplots(figsize=figsize)
+	rects1 = ax.bar(x - width / 2, df_resultados[accuracy_column], width, label="Accuracy", color="skyblue", edgecolor="black")
+	rects2 = ax.bar(x + width / 2, df_resultados[f1_column], width, label="F1-Score Macro", color="salmon", edgecolor="black")
+
+	ax.set_ylabel("Puntuación (0 a 1)", fontsize=12)
+	ax.set_title(title, fontsize=14, fontweight="bold")
+	ax.set_xticks(x)
+	ax.set_xticklabels(df_resultados[model_column], fontsize=11)
+	ax.set_ylim(0, 1.1)
+	ax.legend(loc="upper left", fontsize=11)
+	ax.grid(axis="y", linestyle="--", alpha=0.7)
+
+	def autolabel(rects: Sequence) -> None:
+		"""Añade una etiqueta de texto encima de cada barra."""
+		for rect in rects:
+			height = rect.get_height()
+			ax.annotate(
+				f"{height:.3f}",
+				xy=(rect.get_x() + rect.get_width() / 2, height),
+				xytext=(0, 3),
+				textcoords="offset points",
+				ha="center",
+				va="bottom",
+				fontsize=10,
+			)
+
+	autolabel(rects1)
+	autolabel(rects2)
+
+	plt.tight_layout()
+	plt.show()
+
+
+def apply_gaussian_noise(X: np.ndarray, noise_factor: float) -> np.ndarray:
+	"""Add Gaussian noise to an image or batch and clip to [0, 1]."""
+
+	ruido = np.random.normal(loc=0.0, scale=noise_factor, size=X.shape)
+	X_ruidoso = X + ruido
+	return np.clip(X_ruidoso, 0.0, 1.0)
+
+
+def plot_noise_robustness(
+	acc_history: dict,
+	niveles_ruido: Sequence[float],
+	X_test_flat: np.ndarray,
+	apply_noise_fn=apply_gaussian_noise,
+	figsize: tuple[int, int] = (10, 6),
+	samples_figsize: tuple[int, int] = (15, 3),
+	title: str = "Robustez de los Modelos frente a Ruido Gaussiano",
+	sample_title: str = "Ejemplo de degradación visual",
+	x_label: str = "Nivel de Ruido (Desviación Estándar $\\sigma$)",
+	y_label: str = "Accuracy en Test",
+) -> None:
+	"""Plot accuracy degradation under noise and show example noisy images."""
+
+	plt.figure(figsize=figsize)
+
+	colores = {
+		"M0 (Base)": "blue",
+		"M1 (NumPy Top)": "green",
+		"M2 (PyTorch Eq)": "orange",
+		"M3 (PyTorch Avanzado)": "red",
+	}
+
+	estilos = {
+		"M0 (Base)": ":",
+		"M1 (NumPy Top)": "--",
+		"M2 (PyTorch Eq)": "-.",
+		"M3 (PyTorch Avanzado)": "-",
+	}
+
+	for nombre, accuracies in acc_history.items():
+		plt.plot(
+			niveles_ruido,
+			accuracies,
+			label=nombre,
+			color=colores.get(nombre, "black"),
+			linestyle=estilos.get(nombre, "-"),
+			marker="o",
+			linewidth=2.5,
+			markersize=8,
+		)
+
+	plt.title(title, fontsize=14, fontweight="bold")
+	plt.xlabel(x_label, fontsize=12)
+	plt.ylabel(y_label, fontsize=12)
+	plt.xticks(niveles_ruido)
+	plt.ylim(0, 1.05)
+	plt.legend(fontsize=11)
+	plt.grid(True, linestyle="--", alpha=0.7)
+	plt.tight_layout()
+	plt.show()
+
+	fig, axes = plt.subplots(1, len(niveles_ruido), figsize=samples_figsize)
+	axes_array = np.atleast_1d(axes)
+	muestra_original = X_test_flat[0]
+
+	for ax, nl in zip(axes_array, niveles_ruido):
+		muestra_ruidosa = apply_noise_fn(muestra_original, nl)
+		ax.imshow(muestra_ruidosa.reshape(28, 28), cmap="gray")
+		ax.set_title(f"Ruido: {nl}")
 		ax.axis("off")
 
-	fig.suptitle(f"Evolución de la función de costo por mejora (baseline: {baseline_name})", fontsize=16)
+	fig.suptitle(sample_title, fontsize=14)
 	plt.tight_layout()
 	plt.show()
