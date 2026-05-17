@@ -345,13 +345,9 @@ def plot_numpy_pytorch_loss_comparison(
 	plt.tight_layout()
 	plt.show()
 
-	print("\n" + "=" * 50)
-	print("VEREDICTO DE COMPARACIÓN DE PERFORMANCE")
-	print("=" * 50)
 	print(f"{model_1_label}   -> Pérdida Mínima en Validación: {min(val_loss_m1):.4f}")
 	print(f"{model_2_label} -> Pérdida Mínima en Validación: {min(val_loss_m2):.4f}")
 	print(f"Diferencia absoluta: {abs(min(val_loss_m1) - min(val_loss_m2)):.5f}")
-	print("=" * 50)
 
 
 def plot_metrics_bar_comparison(
@@ -426,15 +422,15 @@ def plot_noise_robustness(
 
 	colores = {
 		"M0 (Base)": "blue",
-		"M1 (NumPy Top)": "green",
-		"M2 (PyTorch Eq)": "orange",
+		"M1 (Avanzado)": "green",
+		"M2 (PyTorch)": "orange",
 		"M3 (PyTorch Avanzado)": "red",
 	}
 
 	estilos = {
 		"M0 (Base)": ":",
-		"M1 (NumPy Top)": "--",
-		"M2 (PyTorch Eq)": "-.",
+		"M1 (Avanzado)": "--",
+		"M2 (PyTorch)": "-.",
 		"M3 (PyTorch Avanzado)": "-",
 	}
 

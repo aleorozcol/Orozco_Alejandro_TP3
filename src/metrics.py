@@ -262,7 +262,6 @@ def compare_training_improvements(
             continue
 
         elapsed_time = time.time() - start_time
-        elapsed_time = time.time() - start_time
 
         architecture_text = experiment.get("architecture") or experiment.get("arquitectura")
         if architecture_text:
